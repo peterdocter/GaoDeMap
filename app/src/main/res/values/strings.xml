@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">GaoDeMap</string>
+    <string name="getLocation">获取当前位置</string>
+    <string name="location_error">定位失败</string>
+    <string name="help">帮助</string>
+    <string name="message_need_permission">需要授予定位权限</string>
+    <string name="cancel">取消</string>
+    <string name="setting">设置</string>
+    <string name="positioning">定位中</string>
+</resources>
