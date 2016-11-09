@@ -22,6 +22,7 @@ import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps2d.AMap;
+import com.amap.api.maps2d.CameraUpdateFactory;
 import com.amap.api.maps2d.LocationSource;
 import com.amap.api.maps2d.MapView;
 import com.amap.api.maps2d.UiSettings;
@@ -134,8 +135,13 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
                         String time = df.format(date);
                         stringBuffer.append(time + "");
                         tvResult.setText(stringBuffer.toString());
-                        //添加标记点。
+                        //添加标记点（移除上一个标记）。
                         addMarker(latitude, longitude);
+                        //地图移动到当前位置。
+                        aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                                new LatLng(aMapLocation.getLatitude(),
+                                        aMapLocation.getLongitude()),
+                                19));
                     } else {
                         Toast.makeText(MainActivity.this, getString(R.string.location_error), Toast.LENGTH_SHORT).show();
                         //定位失败时，可通过ErrCode（错误码）信息来确定失败的原因，errInfo是错误信息，详见错误码表。
