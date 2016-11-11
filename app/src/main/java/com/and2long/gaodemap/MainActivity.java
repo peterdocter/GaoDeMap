@@ -54,16 +54,24 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setTitle("高德地图");
+        //初始化布局
+        initView();
+        //实现地图生命周期管理
+        initMap(savedInstanceState);
+        //初始化定位
+        initLocation();
+    }
 
+    private void initView() {
         tvResult = (TextView) findViewById(R.id.tv_result);
         mMapView = (MapView) findViewById(R.id.map);
 
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage(getResources().getString(R.string.positioning));
         progressDialog.setCancelable(false);
+    }
 
-        registerLocationListener();
-        //实现地图生命周期管理
+    private void initMap(Bundle savedInstanceState) {
         mMapView.onCreate(savedInstanceState);
         if (aMap == null) {
             aMap = mMapView.getMap();
@@ -107,7 +115,7 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
         mMapView.onDestroy();
     }
 
-    private void registerLocationListener() {
+    private void initLocation() {
         //初始化定位
         mLocationClient = new AMapLocationClient(getApplicationContext());
         mLocationListener = new AMapLocationListener() {
