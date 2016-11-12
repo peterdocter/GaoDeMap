@@ -28,11 +28,24 @@ import com.amap.api.maps2d.MapView;
 import com.amap.api.maps2d.UiSettings;
 import com.amap.api.maps2d.model.LatLng;
 import com.amap.api.maps2d.model.MarkerOptions;
+import com.amap.api.navi.AMapNavi;
+import com.amap.api.navi.AMapNaviListener;
+import com.amap.api.navi.model.AMapLaneInfo;
+import com.amap.api.navi.model.AMapNaviCross;
+import com.amap.api.navi.model.AMapNaviInfo;
+import com.amap.api.navi.model.AMapNaviLocation;
+import com.amap.api.navi.model.AMapNaviStaticInfo;
+import com.amap.api.navi.model.AMapNaviTrafficFacilityInfo;
+import com.amap.api.navi.model.AimLessModeCongestionInfo;
+import com.amap.api.navi.model.AimLessModeStat;
+import com.amap.api.navi.model.NaviInfo;
+import com.autonavi.tbt.NaviStaticInfo;
+import com.autonavi.tbt.TrafficFacilityInfo;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class MainActivity extends AppCompatActivity implements LocationSource {
+public class MainActivity extends AppCompatActivity implements LocationSource, AMapNaviListener, AMapLocationListener {
 
     private static final String TAG = "MainActivity";
     private static final int MY_PERMISSIONS_REQUEST = 100;
@@ -48,41 +61,22 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
     private MapView mMapView;
     private AMap aMap;
     private UiSettings mUiSettings;     //定义一个UiSettings对象
+    private AMapNavi mAMapNavi;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setTitle("高德地图");
-        //初始化布局
+        //初始化控件
         initView();
-        //实现地图生命周期管理
+        //初始化地图
         initMap(savedInstanceState);
         //初始化定位
         initLocation();
-    }
+        //初始化导航
+        initNavi();
 
-    private void initView() {
-        tvResult = (TextView) findViewById(R.id.tv_result);
-        mMapView = (MapView) findViewById(R.id.map);
-
-        progressDialog = new ProgressDialog(this);
-        progressDialog.setMessage(getResources().getString(R.string.positioning));
-        progressDialog.setCancelable(false);
-    }
-
-    private void initMap(Bundle savedInstanceState) {
-        mMapView.onCreate(savedInstanceState);
-        if (aMap == null) {
-            aMap = mMapView.getMap();
-            mUiSettings = aMap.getUiSettings();//实例化UiSettings类
-            //mUiSettings.setCompassEnabled(true);
-            mUiSettings.setZoomControlsEnabled(false);
-            aMap.setLocationSource(this);// 设置定位监听
-            mUiSettings.setMyLocationButtonEnabled(true); // 显示默认的定位按钮
-            aMap.setMyLocationEnabled(true);// 可触发定位并显示定位层
-            //mUiSettings.setScaleControlsEnabled(true);//显示比例尺控件
-        }
     }
 
     @Override
@@ -115,63 +109,97 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
         mMapView.onDestroy();
     }
 
+    /**
+     * 请求权限方法回调
+     *
+     * @param requestCode
+     * @param permissions
+     * @param grantResults
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        switch (requestCode) {
+            case MY_PERMISSIONS_REQUEST:
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    //已授权
+                    progressDialog.show();
+                    mLocationClient.startLocation();
+                } else {
+                    //拒绝
+
+                }
+                break;
+        }
+    }
+
+    /**
+     * 初始化控件
+     */
+    private void initView() {
+        tvResult = (TextView) findViewById(R.id.tv_result);
+        mMapView = (MapView) findViewById(R.id.map);
+        //等待提示框
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setMessage(getResources().getString(R.string.positioning));
+        progressDialog.setCancelable(false);
+    }
+
+    /**
+     * 初始化地图
+     *
+     * @param savedInstanceState
+     */
+    private void initMap(Bundle savedInstanceState) {
+        mMapView.onCreate(savedInstanceState);
+        if (aMap == null) {
+            aMap = mMapView.getMap();
+            mUiSettings = aMap.getUiSettings();//实例化UiSettings类
+            //mUiSettings.setCompassEnabled(true);
+            mUiSettings.setZoomControlsEnabled(false);
+            aMap.setLocationSource(this);// 设置定位监听
+            mUiSettings.setMyLocationButtonEnabled(true); // 显示默认的定位按钮
+            aMap.setMyLocationEnabled(true);// 可触发定位并显示定位层
+            //mUiSettings.setScaleControlsEnabled(true);//显示比例尺控件
+        }
+    }
+
+    /**
+     * 初始化定位
+     */
     private void initLocation() {
         //初始化定位
         mLocationClient = new AMapLocationClient(getApplicationContext());
-        mLocationListener = new AMapLocationListener() {
-            @Override
-            public void onLocationChanged(AMapLocation aMapLocation) {
-                progressDialog.dismiss();
-                if (aMapLocation != null) {
-                    if (aMapLocation.getErrorCode() == 0) {
-                        //可在其中解析amapLocation获取相应内容。
-                        StringBuffer stringBuffer = new StringBuffer();
-                        double latitude = aMapLocation.getLatitude();
-                        stringBuffer.append("纬度：" + latitude + "\n");
-                        double longitude = aMapLocation.getLongitude();
-                        stringBuffer.append("经度：" + longitude + "\n");
-                        //stringBuffer.append("精度：" + aMapLocation.getAccuracy() + "\n");
-                        String address = aMapLocation.getProvince()
-                                + aMapLocation.getCity()
-                                + aMapLocation.getDistrict()
-                                + aMapLocation.getStreet()
-                                + aMapLocation.getStreetNum();
-                        stringBuffer.append("地址：" + address + "\n");
-                        //获取定位时间
-                        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                        Date date = new Date(aMapLocation.getTime());
-                        String time = df.format(date);
-                        stringBuffer.append(time + "");
-                        tvResult.setText(stringBuffer.toString());
-                        //添加标记点（移除上一个标记）。
-                        addMarker(latitude, longitude);
-                        //地图移动到当前位置。
-                        aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                                new LatLng(aMapLocation.getLatitude(),
-                                        aMapLocation.getLongitude()),
-                                19));
-                    } else {
-                        Toast.makeText(MainActivity.this, getString(R.string.location_error), Toast.LENGTH_SHORT).show();
-                        //定位失败时，可通过ErrCode（错误码）信息来确定失败的原因，errInfo是错误信息，详见错误码表。
-                        Log.e("AmapError", "location Error, ErrCode:"
-                                + aMapLocation.getErrorCode() + ", errInfo:"
-                                + aMapLocation.getErrorInfo());
-                    }
-                }
-            }
-        };
         //设置定位回调监听
-        mLocationClient.setLocationListener(mLocationListener);
+        mLocationClient.setLocationListener(this);
         //初始化AMapLocationClientOption对象
         mLocationOption = new AMapLocationClientOption();
+        //设置定位请求时间间隔
+        mLocationOption.setHttpTimeOut(5000);
         //设置定位模式为AMapLocationMode.Hight_Accuracy，高精度模式。
         mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy)
-                .setOnceLocation(true)      //获取一次定位结果
-                .setNeedAddress(true);      //返回地址信息
+                //获取一次定位结果
+                .setOnceLocation(true)
+                //返回地址信息
+                .setNeedAddress(true);
         //给定位客户端对象设置定位参数
         mLocationClient.setLocationOption(mLocationOption);
     }
 
+    /**
+     * 初始化导航
+     */
+    private void initNavi() {
+        //获取AMapNavi实例
+        mAMapNavi = AMapNavi.getInstance(getApplicationContext());
+        //添加监听回调，用于处理算路成功
+        mAMapNavi.addAMapNaviListener(this);
+    }
+
+    /**
+     * 检查权限并进行下一步操作
+     */
     private void checkPermissionsAndDoNext() {
         if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_COARSE_LOCATION)) {
@@ -215,26 +243,19 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
         }
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case MY_PERMISSIONS_REQUEST:
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    //已授权
-                    progressDialog.show();
-                    mLocationClient.startLocation();
-                } else {
-                    //拒绝
+    /**
+     * 添加标记点
+     *
+     * @param latitude
+     * @param longitude
+     */
+    private void addMarker(double latitude, double longitude) {
+        LatLng latLng = new LatLng(latitude, longitude);
+        aMap.clear();
+        aMap.addMarker(new MarkerOptions()
+                .position(latLng));
 
-                }
-                break;
-
-
-        }
     }
-
 
     @Override
     public void activate(OnLocationChangedListener onLocationChangedListener) {
@@ -247,12 +268,204 @@ public class MainActivity extends AppCompatActivity implements LocationSource {
 
     }
 
+    /**
+     * 定位信息改变
+     *
+     * @param aMapLocation
+     */
+    @Override
+    public void onLocationChanged(AMapLocation aMapLocation) {
+        progressDialog.dismiss();
+        if (aMapLocation != null) {
+            if (aMapLocation.getErrorCode() == 0) {
+                //可在其中解析amapLocation获取相应内容。
+                StringBuffer stringBuffer = new StringBuffer();
+                double latitude = aMapLocation.getLatitude();
+                stringBuffer.append("纬度：" + latitude + "\n");
+                double longitude = aMapLocation.getLongitude();
+                stringBuffer.append("经度：" + longitude + "\n");
+                //stringBuffer.append("精度：" + aMapLocation.getAccuracy() + "\n");
+                String address = aMapLocation.getProvince()
+                        + aMapLocation.getCity()
+                        + aMapLocation.getDistrict()
+                        + aMapLocation.getStreet()
+                        + aMapLocation.getStreetNum();
+                stringBuffer.append("地址：" + address + "\n");
+                //获取定位时间
+                SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                Date date = new Date(aMapLocation.getTime());
+                String time = df.format(date);
+                stringBuffer.append(time + "");
+                tvResult.setText(stringBuffer.toString());
+                //添加标记点（移除上一个标记）。
+                //addMarker(latitude, longitude);
+                addMarker(39.955846, 116.352765);
+                //地图移动到当前位置。
+                aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                        new LatLng(aMapLocation.getLatitude(),
+                                aMapLocation.getLongitude()),
+                        19));
+            } else {
+                Toast.makeText(MainActivity.this, getString(R.string.location_error), Toast.LENGTH_SHORT).show();
+                //定位失败时，可通过ErrCode（错误码）信息来确定失败的原因，errInfo是错误信息，详见错误码表。
+                Log.e("AmapError", "location Error, ErrCode:"
+                        + aMapLocation.getErrorCode() + ", errInfo:"
+                        + aMapLocation.getErrorInfo());
+            }
+        }
+    }
 
-    private void addMarker(double latitude, double longitude) {
-        LatLng latLng = new LatLng(latitude, longitude);
-        aMap.clear();
-        aMap.addMarker(new MarkerOptions()
-                .position(latLng));
+    @Override
+    public void onInitNaviFailure() {
 
     }
+
+    @Override
+    public void onInitNaviSuccess() {
+        /*int strategy=0;
+        try {
+            strategy = mAMapNavi.strategyConvert(true, false, false, false, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        mAMapNavi.calculateDriveRoute(sList, eList, mWayPointList, strategy);
+        */
+    }
+
+    @Override
+    public void onStartNavi(int i) {
+
+    }
+
+    @Override
+    public void onTrafficStatusUpdate() {
+
+    }
+
+    @Override
+    public void onLocationChange(AMapNaviLocation aMapNaviLocation) {
+
+    }
+
+    @Override
+    public void onGetNavigationText(int i, String s) {
+
+    }
+
+    @Override
+    public void onEndEmulatorNavi() {
+
+    }
+
+    @Override
+    public void onArriveDestination() {
+
+    }
+
+    @Override
+    public void onArriveDestination(NaviStaticInfo naviStaticInfo) {
+
+    }
+
+    @Override
+    public void onArriveDestination(AMapNaviStaticInfo aMapNaviStaticInfo) {
+
+    }
+
+    @Override
+    public void onCalculateRouteSuccess() {
+
+    }
+
+    @Override
+    public void onCalculateRouteFailure(int i) {
+
+    }
+
+    @Override
+    public void onReCalculateRouteForYaw() {
+
+    }
+
+    @Override
+    public void onReCalculateRouteForTrafficJam() {
+
+    }
+
+    @Override
+    public void onArrivedWayPoint(int i) {
+
+    }
+
+    @Override
+    public void onGpsOpenStatus(boolean b) {
+
+    }
+
+    @Override
+    public void onNaviInfoUpdated(AMapNaviInfo aMapNaviInfo) {
+
+    }
+
+    @Override
+    public void onNaviInfoUpdate(NaviInfo naviInfo) {
+
+    }
+
+    @Override
+    public void OnUpdateTrafficFacility(AMapNaviTrafficFacilityInfo aMapNaviTrafficFacilityInfo) {
+
+    }
+
+    @Override
+    public void OnUpdateTrafficFacility(TrafficFacilityInfo trafficFacilityInfo) {
+
+    }
+
+    @Override
+    public void showCross(AMapNaviCross aMapNaviCross) {
+
+    }
+
+    @Override
+    public void hideCross() {
+
+    }
+
+    @Override
+    public void showLaneInfo(AMapLaneInfo[] aMapLaneInfos, byte[] bytes, byte[] bytes1) {
+
+    }
+
+    @Override
+    public void hideLaneInfo() {
+
+    }
+
+    @Override
+    public void onCalculateMultipleRoutesSuccess(int[] ints) {
+
+    }
+
+    @Override
+    public void notifyParallelRoad(int i) {
+
+    }
+
+    @Override
+    public void OnUpdateTrafficFacility(AMapNaviTrafficFacilityInfo[] aMapNaviTrafficFacilityInfos) {
+
+    }
+
+    @Override
+    public void updateAimlessModeStatistics(AimLessModeStat aimLessModeStat) {
+
+    }
+
+    @Override
+    public void updateAimlessModeCongestionInfo(AimLessModeCongestionInfo aimLessModeCongestionInfo) {
+
+    }
+
+
 }
