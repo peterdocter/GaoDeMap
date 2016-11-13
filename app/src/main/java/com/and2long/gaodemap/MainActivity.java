@@ -1,19 +1,14 @@
 package com.and2long.gaodemap;
 
-import android.Manifest;
 import android.app.ProgressDialog;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.net.Uri;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.SparseArray;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,31 +16,39 @@ import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
-import com.amap.api.maps2d.AMap;
-import com.amap.api.maps2d.CameraUpdateFactory;
-import com.amap.api.maps2d.LocationSource;
-import com.amap.api.maps2d.MapView;
-import com.amap.api.maps2d.UiSettings;
-import com.amap.api.maps2d.model.LatLng;
-import com.amap.api.maps2d.model.MarkerOptions;
+import com.amap.api.maps.AMap;
+import com.amap.api.maps.CameraUpdateFactory;
+import com.amap.api.maps.LocationSource;
+import com.amap.api.maps.MapView;
+import com.amap.api.maps.UiSettings;
+import com.amap.api.maps.model.BitmapDescriptorFactory;
+import com.amap.api.maps.model.CameraPosition;
+import com.amap.api.maps.model.LatLng;
+import com.amap.api.maps.model.Marker;
+import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.navi.AMapNavi;
 import com.amap.api.navi.AMapNaviListener;
 import com.amap.api.navi.model.AMapLaneInfo;
 import com.amap.api.navi.model.AMapNaviCross;
 import com.amap.api.navi.model.AMapNaviInfo;
 import com.amap.api.navi.model.AMapNaviLocation;
+import com.amap.api.navi.model.AMapNaviPath;
 import com.amap.api.navi.model.AMapNaviStaticInfo;
 import com.amap.api.navi.model.AMapNaviTrafficFacilityInfo;
 import com.amap.api.navi.model.AimLessModeCongestionInfo;
 import com.amap.api.navi.model.AimLessModeStat;
 import com.amap.api.navi.model.NaviInfo;
+import com.amap.api.navi.model.NaviLatLng;
+import com.amap.api.navi.view.RouteOverLay;
 import com.autonavi.tbt.NaviStaticInfo;
 import com.autonavi.tbt.TrafficFacilityInfo;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements LocationSource, AMapNaviListener, AMapLocationListener {
+public class MainActivity extends AppCompatActivity implements LocationSource, AMapLocationListener, AMap.OnCameraChangeListener, AMap.OnMarkerClickListener, AMapNaviListener, AMap.OnMapClickListener, View.OnClickListener {
 
     private static final String TAG = "MainActivity";
     private static final int MY_PERMISSIONS_REQUEST = 100;
@@ -59,15 +62,46 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
     private TextView tvResult;
     private ProgressDialog progressDialog;
     private MapView mMapView;
-    private AMap aMap;
     private UiSettings mUiSettings;     //定义一个UiSettings对象
+    private int width; //屏幕宽度
+    private int height;//屏幕高度
+    //屏幕移动过程中的中心Marker
+    private Marker pinMarker;
+    // 中心点经纬度
+    private LatLng centerLl;
+    // 起点坐标
+    private NaviLatLng mNaviStart;
+    // 终点坐标
+    private NaviLatLng mNaviEnd;
+    // 高德导航界面
     private AMapNavi mAMapNavi;
+    //导航起点标记
+    private Marker mStartMarker;
+    //导航终点标记
+    private Marker mEndMarker;
+    private AMap mAmap;
+    private Button btnNavi;
+    //地图是否可点击
+    //private boolean mapClickStartReady;
+    private boolean mapClickEndReady;
+    //起点坐标
+    private NaviLatLng startLatlng;
+    //终点坐标
+    private NaviLatLng endLatlng;
+    //起点坐标集合
+    private List<NaviLatLng> startList = new ArrayList<>();
+    //终点坐标集合
+    private List<NaviLatLng> endList = new ArrayList<>();
+    //保存当前算好的路线
+    private SparseArray<RouteOverLay> routeOverlays = new SparseArray<>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setTitle("高德地图");
+        init();
         //初始化控件
         initView();
         //初始化地图
@@ -76,7 +110,16 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         initLocation();
         //初始化导航
         initNavi();
+        //开启定位
+        startLocation();
+    }
 
+    private void init() {
+        // 屏幕像素获得
+        DisplayMetrics dm = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        width = dm.widthPixels;
+        height = dm.heightPixels;
     }
 
     @Override
@@ -109,30 +152,6 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         mMapView.onDestroy();
     }
 
-    /**
-     * 请求权限方法回调
-     *
-     * @param requestCode
-     * @param permissions
-     * @param grantResults
-     */
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case MY_PERMISSIONS_REQUEST:
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    //已授权
-                    progressDialog.show();
-                    mLocationClient.startLocation();
-                } else {
-                    //拒绝
-
-                }
-                break;
-        }
-    }
 
     /**
      * 初始化控件
@@ -140,6 +159,8 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
     private void initView() {
         tvResult = (TextView) findViewById(R.id.tv_result);
         mMapView = (MapView) findViewById(R.id.map);
+        btnNavi = (Button) findViewById(R.id.btn_navi);
+        btnNavi.setOnClickListener(this);
         //等待提示框
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage(getResources().getString(R.string.positioning));
@@ -153,16 +174,19 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
      */
     private void initMap(Bundle savedInstanceState) {
         mMapView.onCreate(savedInstanceState);
-        if (aMap == null) {
-            aMap = mMapView.getMap();
-            mUiSettings = aMap.getUiSettings();//实例化UiSettings类
-            //mUiSettings.setCompassEnabled(true);
-            mUiSettings.setZoomControlsEnabled(false);
-            aMap.setLocationSource(this);// 设置定位监听
-            mUiSettings.setMyLocationButtonEnabled(true); // 显示默认的定位按钮
-            aMap.setMyLocationEnabled(true);// 可触发定位并显示定位层
-            //mUiSettings.setScaleControlsEnabled(true);//显示比例尺控件
+        if (mAmap == null) {
+            mAmap = mMapView.getMap();
         }
+        mUiSettings = mAmap.getUiSettings();//实例化UiSettings类
+        mUiSettings.setZoomControlsEnabled(true);       //显示缩放控件
+        mUiSettings.setMyLocationButtonEnabled(true); // 显示默认的定位按钮
+        mAmap.setLocationSource(this);// 设置定位监听
+        mAmap.setMyLocationEnabled(true);// 可触发定位并显示定位层
+        //设置地图移动监听
+        mAmap.setOnCameraChangeListener(this);
+        mAmap.setOnMapClickListener(this);
+        //卫星模式
+        mAmap.setMapType(AMap.MAP_TYPE_SATELLITE);
     }
 
     /**
@@ -195,52 +219,10 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         mAMapNavi = AMapNavi.getInstance(getApplicationContext());
         //添加监听回调，用于处理算路成功
         mAMapNavi.addAMapNaviListener(this);
-    }
-
-    /**
-     * 检查权限并进行下一步操作
-     */
-    private void checkPermissionsAndDoNext() {
-        if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_COARSE_LOCATION)) {
-            //如果app之前请求过该权限,被用户拒绝, 这个方法就会返回true.
-            //如果用户之前拒绝权限的时候勾选了对话框中"Don’t ask again"的选项,那么这个方法会返回false.
-            //如果设备策略禁止应用拥有这条权限, 这个方法也返回false.
-            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this,
-                    Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                //提示用户需要权限
-                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setTitle(R.string.help)
-                        .setCancelable(false)
-                        .setMessage(R.string.message_need_permission)
-                        .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                dialog.dismiss();
-                            }
-                        })
-                        .setPositiveButton(R.string.setting, new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                //进入设置中的应用信息详情页，让用户手动授权
-                                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                intent.setData(Uri.parse("package:" + getPackageName()));
-                                startActivity(intent);
-                            }
-                        })
-                        .create()
-                        .show();
-            } else {
-                //没有权限，请求权限。
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},
-                        MY_PERMISSIONS_REQUEST);
-            }
-        } else {
-            //具有权限，执行操作
-            progressDialog.show();
-            mLocationClient.startLocation();
-        }
+        // 初始化Marker添加到地图
+        /*mStartMarker = mAmap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.start))));
+        mEndMarker = mAmap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.end))));
+*/
     }
 
     /**
@@ -251,16 +233,32 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
      */
     private void addMarker(double latitude, double longitude) {
         LatLng latLng = new LatLng(latitude, longitude);
-        aMap.clear();
-        aMap.addMarker(new MarkerOptions()
+        mAmap.clear();
+        mAmap.addMarker(new MarkerOptions()
                 .position(latLng));
 
     }
 
+    /**
+     * 定位按钮被点击时回调
+     *
+     * @param onLocationChangedListener
+     */
     @Override
     public void activate(OnLocationChangedListener onLocationChangedListener) {
-        Log.i(TAG, "activate: 此方法被回调。");
-        checkPermissionsAndDoNext();
+        Log.i(TAG, "activate: 定位按钮被点击");
+        startLocation();
+    }
+
+    /**
+     * 启动定位.
+     */
+    private void startLocation() {
+        progressDialog.show();
+        if (mLocationClient == null) {
+            return;
+        }
+        mLocationClient.startLocation();
     }
 
     @Override
@@ -275,7 +273,9 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
      */
     @Override
     public void onLocationChanged(AMapLocation aMapLocation) {
+        Log.i(TAG, "onLocationChanged: 位置信息改变");
         progressDialog.dismiss();
+        mAmap.clear();
         if (aMapLocation != null) {
             if (aMapLocation.getErrorCode() == 0) {
                 //可在其中解析amapLocation获取相应内容。
@@ -298,13 +298,17 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
                 stringBuffer.append(time + "");
                 tvResult.setText(stringBuffer.toString());
                 //添加标记点（移除上一个标记）。
-                //addMarker(latitude, longitude);
-                addMarker(39.955846, 116.352765);
+                addMarker(latitude, longitude);
+                Log.i(TAG, "onLocationChanged: 定位成功");
                 //地图移动到当前位置。
-                aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                mAmap.moveCamera(CameraUpdateFactory.newLatLngZoom(
                         new LatLng(aMapLocation.getLatitude(),
                                 aMapLocation.getLongitude()),
-                        19));
+                        18));
+                //导航起点
+                startLatlng = new NaviLatLng(latitude, longitude);
+                startList.clear();
+                startList.add(startLatlng);
             } else {
                 Toast.makeText(MainActivity.this, getString(R.string.location_error), Toast.LENGTH_SHORT).show();
                 //定位失败时，可通过ErrCode（错误码）信息来确定失败的原因，errInfo是错误信息，详见错误码表。
@@ -315,26 +319,126 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         }
     }
 
+    /**
+     * 地图拖拽事件
+     *
+     * @param cameraPosition
+     */
+    @Override
+    public void onCameraChange(CameraPosition cameraPosition) {
+        Log.i(TAG, "onCameraChange: 地图被拖拽");
+        if (pinMarker != null) {
+            pinMarker.remove();
+        }
+
+    }
+
+    /**
+     * 地图拖拽完毕
+     *
+     * @param cameraPosition
+     */
+    @Override
+    public void onCameraChangeFinish(CameraPosition cameraPosition) {
+        Log.i(TAG, "onCameraChangeFinish: 地图拖拽完毕");
+        /*//添加标签
+        pinMarker = aMap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromResource(R.mipmap.icon_pin)).draggable(false).draggable(false));
+        pinMarker.setPositionByPixels(width / 2, height / 2);
+        //中心点坐标
+        centerLl = cameraPosition.target;
+        //导航终点
+        mNaviEnd = new NaviLatLng(centerLl.latitude, centerLl.longitude);
+        calculateDriveRoute();*/
+    }
+
+    /**
+     * 设置marker点击事件
+     *
+     * @param marker
+     * @return
+     */
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        Log.i(TAG, "onMarkerClick: Marker被点击");
+        return false;
+    }
+
+    /**
+     * 计算驾车路线
+     */
+    private void calculateDriveRoute() {
+        //clearRoute();
+        mapClickEndReady = false;
+        int strategyFlag = 0;
+        try {
+            strategyFlag = mAMapNavi.strategyConvert(true, false, false, false, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if (strategyFlag >= 0) {
+            mAMapNavi.calculateDriveRoute(startList, endList, null, strategyFlag);
+            Toast.makeText(getApplicationContext(), "策略:" + strategyFlag, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     @Override
     public void onInitNaviFailure() {
 
     }
 
+    /**
+     * 导航初始化成功
+     */
     @Override
     public void onInitNaviSuccess() {
-        /*int strategy=0;
-        try {
-            strategy = mAMapNavi.strategyConvert(true, false, false, false, false);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        mAMapNavi.calculateDriveRoute(sList, eList, mWayPointList, strategy);
-        */
+        Log.i(TAG, "onInitNaviSuccess: 导航初始化成功");
+    }
+
+    /**
+     * 线路规划成功
+     */
+    @Override
+    public void onCalculateRouteSuccess() {
+        Log.i(TAG, "onCalculateRouteSuccess: 单一策略,线路规划成功");
+        routeOverlays.clear();
+        AMapNaviPath path = mAMapNavi.getNaviPath();
+        /**
+         * 单路径不需要进行路径选择，直接传入－1即可
+         */
+        drawRoutes(-1, path);
+    }
+
+    /**
+     * 多线路规划成功
+     *
+     * @param ints
+     */
+    @Override
+    public void onCalculateMultipleRoutesSuccess(int[] ints) {
+        Log.i(TAG, "onCalculateMultipleRoutesSuccess: 多策略,线路规划成功");
+    }
+
+    /**
+     * 算路失败
+     *
+     * @param i
+     */
+    @Override
+    public void onCalculateRouteFailure(int i) {
+        Log.i(TAG, "onCalculateRouteFailure: 算路失败");
+    }
+
+    private void drawRoutes(int routeId, AMapNaviPath path) {
+        mAmap.moveCamera(CameraUpdateFactory.changeTilt(0));
+        RouteOverLay routeOverLay = new RouteOverLay(mAmap, path, this);
+        routeOverLay.setTrafficLine(true);
+        routeOverLay.addToMap();
+        routeOverlays.put(routeId, routeOverLay);
     }
 
     @Override
     public void onStartNavi(int i) {
-
+        Log.i(TAG, "onStartNavi: 开始导航");
     }
 
     @Override
@@ -344,7 +448,7 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
 
     @Override
     public void onLocationChange(AMapNaviLocation aMapNaviLocation) {
-
+        Log.i(TAG, "onLocationChange: ");
     }
 
     @Override
@@ -369,16 +473,6 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
 
     @Override
     public void onArriveDestination(AMapNaviStaticInfo aMapNaviStaticInfo) {
-
-    }
-
-    @Override
-    public void onCalculateRouteSuccess() {
-
-    }
-
-    @Override
-    public void onCalculateRouteFailure(int i) {
 
     }
 
@@ -443,11 +537,6 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
     }
 
     @Override
-    public void onCalculateMultipleRoutesSuccess(int[] ints) {
-
-    }
-
-    @Override
     public void notifyParallelRoad(int i) {
 
     }
@@ -467,5 +556,42 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
 
     }
 
+    /**
+     * 地图点击事件
+     *
+     * @param latLng
+     */
+    @Override
+    public void onMapClick(LatLng latLng) {
+        //控制选终点
+        if (mapClickEndReady) {
+            endLatlng = new NaviLatLng(latLng.latitude, latLng.longitude);
+            mAmap.addMarker(new MarkerOptions()
+                    .icon(BitmapDescriptorFactory.fromBitmap(BitmapFactory.decodeResource
+                            (getResources(), R.mipmap.end)))
+                    .position(latLng));
+            //mEndMarker.setPosition(latLng);
+            endList.clear();
+            endList.add(endLatlng);
+            mapClickEndReady = false;
+            //开始计算驾车路线
+            calculateDriveRoute();
+        }
+    }
 
+    /**
+     * 控件的点击事件
+     *
+     * @param v
+     */
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.btn_navi:
+                //设置地图可点击
+                mapClickEndReady = true;
+                Toast.makeText(this, "选择终点", Toast.LENGTH_SHORT).show();
+                break;
+        }
+    }
 }
