@@ -186,7 +186,7 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         mAmap.setOnCameraChangeListener(this);
         mAmap.setOnMapClickListener(this);
         //卫星模式
-        mAmap.setMapType(AMap.MAP_TYPE_SATELLITE);
+        mAmap.setMapType(AMap.MAP_TYPE_NORMAL);
     }
 
     /**
