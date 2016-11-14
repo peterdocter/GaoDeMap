@@ -1,6 +1,7 @@
 package com.and2long.gaodemap;
 
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -94,6 +95,7 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
     private List<NaviLatLng> endList = new ArrayList<>();
     //保存当前算好的路线
     private SparseArray<RouteOverLay> routeOverlays = new SparseArray<>();
+    private Button btnSatrtNavi;
 
 
     @Override
@@ -160,7 +162,9 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         tvResult = (TextView) findViewById(R.id.tv_result);
         mMapView = (MapView) findViewById(R.id.map);
         btnNavi = (Button) findViewById(R.id.btn_navi);
+        btnSatrtNavi = (Button) findViewById(R.id.btn_start_navi);
         btnNavi.setOnClickListener(this);
+        btnSatrtNavi.setOnClickListener(this);
         //等待提示框
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage(getResources().getString(R.string.positioning));
@@ -185,7 +189,7 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         //设置地图移动监听
         mAmap.setOnCameraChangeListener(this);
         mAmap.setOnMapClickListener(this);
-        //卫星模式
+        //地图显示模式:普通模式
         mAmap.setMapType(AMap.MAP_TYPE_NORMAL);
     }
 
@@ -220,9 +224,8 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         //添加监听回调，用于处理算路成功
         mAMapNavi.addAMapNaviListener(this);
         // 初始化Marker添加到地图
-        /*mStartMarker = mAmap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.start))));
+        mStartMarker = mAmap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.start))));
         mEndMarker = mAmap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.end))));
-*/
     }
 
     /**
@@ -247,6 +250,7 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
     @Override
     public void activate(OnLocationChangedListener onLocationChangedListener) {
         Log.i(TAG, "activate: 定位按钮被点击");
+        btnSatrtNavi.setVisibility(View.GONE);
         startLocation();
     }
 
@@ -402,10 +406,10 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
         Log.i(TAG, "onCalculateRouteSuccess: 单一策略,线路规划成功");
         routeOverlays.clear();
         AMapNaviPath path = mAMapNavi.getNaviPath();
-        /**
-         * 单路径不需要进行路径选择，直接传入－1即可
-         */
+        //单路径不需要进行路径选择，直接传入－1即可
         drawRoutes(-1, path);
+        //设置开始导航按钮可点击
+        btnSatrtNavi.setVisibility(View.VISIBLE);
     }
 
     /**
@@ -591,6 +595,11 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
                 //设置地图可点击
                 mapClickEndReady = true;
                 Toast.makeText(this, "选择终点", Toast.LENGTH_SHORT).show();
+                break;
+            case R.id.btn_start_navi:
+                Intent gpsintent = new Intent(this, RouteNaviActivity.class);
+                gpsintent.putExtra("gps", true);
+                startActivity(gpsintent);
                 break;
         }
     }

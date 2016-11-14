@@ -8,4 +8,6 @@
     <string name="setting">设置</string>
     <string name="positioning">定位中</string>
     <string name="btn_navi">导航</string>
+    <string name="app_id">5829c3df</string>
+    <string name="start_navi">开始导航</string>
 </resources>

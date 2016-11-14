@@ -30,6 +30,7 @@
         <meta-data
             android:name="com.amap.api.v2.apikey"
             android:value="dd23113765eaf856c7f5531cc69d2e0a" />
+
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -37,6 +38,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".RouteNaviActivity" />
+
         <service android:name="com.amap.api.location.APSService" />
 
     </application>
