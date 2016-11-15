@@ -32,3 +32,5 @@
 #导航
 -keep class com.amap.api.navi.**{*;}
 -keep class com.autonavi.**{*;}
+#讯飞语音
+-keep class com.iflytek.**{*;}
