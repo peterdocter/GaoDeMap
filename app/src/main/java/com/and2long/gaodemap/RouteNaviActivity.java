@@ -86,7 +86,7 @@ public class RouteNaviActivity extends Activity implements AMapNaviListener, AMa
 
     @Override
     public void onInitNaviFailure() {
-        Toast.makeText(this, "init navi Failed", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "导航初始化失败", Toast.LENGTH_SHORT).show();
     }
 
     @Override

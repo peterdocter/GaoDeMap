@@ -314,7 +314,8 @@ public class MainActivity extends AppCompatActivity implements LocationSource, A
                 startList.clear();
                 startList.add(startLatlng);
             } else {
-                Toast.makeText(MainActivity.this, getString(R.string.location_error), Toast.LENGTH_SHORT).show();
+                int errorCode = aMapLocation.getErrorCode();
+                Toast.makeText(MainActivity.this, getString(R.string.location_error) + "错误码:" + errorCode, Toast.LENGTH_SHORT).show();
                 //定位失败时，可通过ErrCode（错误码）信息来确定失败的原因，errInfo是错误信息，详见错误码表。
                 Log.e("AmapError", "location Error, ErrCode:"
                         + aMapLocation.getErrorCode() + ", errInfo:"
